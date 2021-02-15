@@ -1,7 +1,7 @@
 from pulp import *
 import numpy as np
 import networkx as nx
-from itertools import chain, combinations
+from itertools import combinations
 import sys
 import tsplib95 as tsplib
 from tqdm import tqdm
@@ -28,7 +28,7 @@ else:
     N = 15
     
 if not G:
-    G = nx.complete_graph(N)
+    G = nx.complete_graph(N).to_directed()
     M = G.number_of_edges()
     weights = np.random.randint(1, 10, M)
     weights_dict = {e: {'weight': weights[i]} for i, e in enumerate(G.edges)}
@@ -42,7 +42,6 @@ model = LpProblem('tsp', LpMinimize)
 variable_names = ['{' + str(u) + ',' + str(v) + '}' for u, v in G.edges]
 variables = np.array(LpVariable.matrix('X', variable_names, cat=LpBinary))
 variables_dict = {e: v for e, v in zip(G.edges, variables)}
-variables_dict |= {(m, n): v for (n, m), v in zip(G.edges, variables)}
 
 obj_func = lpSum(variables * weights)
 model += obj_func
@@ -50,15 +49,18 @@ model += obj_func
 print('creating degree inequalities...')
 
 for n in G.nodes:
-    degIneq = lpSum(variables_dict[(n, m)] for m in G.nodes if n != m) == 2
-    model += degIneq, 'degree inequality ' + str(n)
+    inDegreeIneq = lpSum(variables_dict[(m, n)] for m in G.nodes if n != m) == 1
+    outDegreeIneq = lpSum(variables_dict[(n, m)] for m in G.nodes if n != m) == 1
+    model += inDegreeIneq, 'indegree inequality ' + str(n)
+    model += outDegreeIneq, 'outdegree inequality ' + str(n)
     
 print('creating subtour elimination inequalities...')
 
-for S in tqdm(chain.from_iterable(combinations(G.nodes, r) for r in range(3, N//2+1))):
-    S = list(S)
-    subTourEl = lpSum(variables_dict[(n,m)] for n in S for m in S if m > n) <= len(S) - 1
-    model += subTourEl, 'subtour elimination ' + str(S)
+for r in tqdm(range(2, N)):
+    for S in combinations(range(1, N), r):
+        S = list(S)
+        subTourEl = lpSum(variables_dict[(n,m)] for n in S for m in S if m != n) <= r - 1
+        model += subTourEl, 'subtour elimination ' + str(S)
 
 #print(model)
 
