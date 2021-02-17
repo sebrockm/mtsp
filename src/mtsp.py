@@ -95,16 +95,21 @@ def solve_mtsp(start_positions, end_positions, weights):
     print([v.name for v in variables.reshape((-1,)) if v.value() == 1])
     
     paths = []
+    lengths = []
     for a in agents:
         path = []
+        length = 0
         i = start_positions[a]
         while i != end_positions[a]:
             path.append(i)
+            prev_i = i
             i = np.argmax([v.value() for v in variables[a, i]])
+            length += weights[prev_i, i]
         path.append(i)
         paths.append(path)
+        lengths.append(length)
         
-    return paths
+    return paths, lengths
     
 
 if __name__ == '__main__':
@@ -130,7 +135,7 @@ if __name__ == '__main__':
     print('start positions:', start_positions)
     print('end positions:', end_positions)
     
-    paths = solve_mtsp(start_positions, end_positions, weights);
+    paths, lengths = solve_mtsp(start_positions, end_positions, weights);
     
-    for i, path in enumerate(paths):
-        print('{}: {}'.format(i, path))
+    for i, (path, length) in enumerate(zip(paths, lengths)):
+        print('{}: {} length={}'.format(i, path, length))
