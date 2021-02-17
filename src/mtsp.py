@@ -94,10 +94,21 @@ def solve_mtsp(start_positions, end_positions, weights):
 
     print([v.name for v in variables.reshape((-1,)) if v.value() == 1])
     
+    paths = []
+    for a in agents:
+        path = []
+        i = start_positions[a]
+        while i != end_positions[a]:
+            path.append(i)
+            i = np.argmax([v.value() for v in variables[a, i]])
+        path.append(i)
+        paths.append(path)
+        
+    return paths
     
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Solving an mTSP with arbitrary stat and end points')
+    parser = argparse.ArgumentParser(description='Solving an mTSP with arbitrary start and end points')
     parser.add_argument('--agents', default=3, type=int, help='number of agents')
     parser.add_argument('--nodes', default=10, type=int, help='number of nodes')
 
@@ -119,4 +130,7 @@ if __name__ == '__main__':
     print('start positions:', start_positions)
     print('end positions:', end_positions)
     
-    solve_mtsp(start_positions, end_positions, weights);
+    paths = solve_mtsp(start_positions, end_positions, weights);
+    
+    for i, path in enumerate(paths):
+        print('{}: {}'.format(i, path))
