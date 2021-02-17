@@ -6,7 +6,11 @@ import tsplib95 as tsplib
 from tqdm import tqdm
 import argparse
 
-def solve_mtsp(start_positions, end_positions, weights):
+optimization_modes = ['sum', 'max']
+
+def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum'):
+    assert(optimization_mode in optimization_modes)
+    
     start_positions = np.array(start_positions)
     end_positions = np.array(end_positions)
     assert(start_positions.ndim == end_positions.ndim == 1)
@@ -57,8 +61,14 @@ def solve_mtsp(start_positions, end_positions, weights):
             v.setInitialValue(0)
             v.fixValue()
 
-    obj_func = lpSum(variables * weights)
-    model += obj_func
+    if optimization_mode == 'sum':
+        obj_func = lpSum(variables * weights)
+        model += obj_func
+    elif optimization_mode == 'max':
+        max_rout_length = LpVariable('max rout length')
+        model += max_rout_length # objective function: minimize max rout length
+        for a in agents:
+            model += max_rout_length >= lpSum(variables[a] * weights)
 
     print('creating degree inequalities of start and end positions...')
     for a in agents:
@@ -116,10 +126,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Solving an mTSP with arbitrary start and end points')
     parser.add_argument('--agents', default=3, type=int, help='number of agents')
     parser.add_argument('--nodes', default=10, type=int, help='number of nodes')
+    parser.add_argument('--mode', default='sum', choices=optimization_modes)
 
     args = parser.parse_args()
     N = args.nodes
     A = args.agents
+    mode = args.mode
 
     np.random.seed(42)
 
@@ -135,7 +147,7 @@ if __name__ == '__main__':
     print('start positions:', start_positions)
     print('end positions:', end_positions)
     
-    paths, lengths = solve_mtsp(start_positions, end_positions, weights);
+    paths, lengths = solve_mtsp(start_positions, end_positions, weights, mode);
     
     for i, (path, length) in enumerate(zip(paths, lengths)):
         print('{}: {} length={}'.format(i, path, length))
