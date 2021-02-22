@@ -1,28 +1,29 @@
 from pulp import *
 import numpy as np
 import networkx as nx
-from itertools import combinations
+from itertools import product
 import tsplib95 as tsplib
 from tqdm import tqdm
 import argparse
+from bnc import branch_and_cut
 
 optimization_modes = ['sum', 'max']
 
 def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum'):
-    assert(optimization_mode in optimization_modes)
+    assert optimization_mode in optimization_modes
     
     start_positions = np.array(start_positions)
     end_positions = np.array(end_positions)
-    assert(start_positions.ndim == end_positions.ndim == 1)
-    assert(start_positions.size == end_positions.size)
+    assert start_positions.ndim == end_positions.ndim == 1
+    assert start_positions.size == end_positions.size
     A = start_positions.size
     
     weights = np.array(weights)    
-    assert(weights.ndim == 2)
-    assert(weights.shape[0] == weights.shape[1])
+    assert weights.ndim == 2
+    assert weights.shape[0] == weights.shape[1]
     N = weights.shape[0]
     
-    assert(2 * A <= N)
+    assert 2 * A <= N
     
     nodes = np.arange(N)
     agents = np.arange(A)
@@ -30,8 +31,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     print('creating model...')
 
     model = LpProblem('tsp', LpMinimize)
-    variable_names = ['{{{}:{},{}}}'.format(a, u, v) for a in agents for u in nodes for v in nodes]
-    variables = np.array(LpVariable.matrix('X', variable_names, cat=LpBinary)).reshape((A, N, N))
+    variable_names = ['{{{},{},{}}}'.format(a, u, v) for a in agents for u in nodes for v in nodes]
+    variables = np.array(LpVariable.matrix('X', variable_names, 0, 1)).reshape((A, N, N))
 
     print('fixing some unused variables to zero...')
     # self referring arc (entries on diagonal)
@@ -65,10 +66,10 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
         obj_func = lpSum(variables * weights)
         model += obj_func
     elif optimization_mode == 'max':
-        max_rout_length = LpVariable('max rout length')
-        model += max_rout_length # objective function: minimize max rout length
+        max_route_length = LpVariable('max rout length')
+        model += max_route_length # objective function: minimize max route length
         for a in agents:
-            model += max_rout_length >= lpSum(variables[a] * weights)
+            model += max_route_length >= lpSum(variables[a] * weights)
 
     print('creating degree inequalities of start and end positions...')
     for a in agents:
@@ -89,18 +90,50 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
                 model += perAgentDegreesIneq, 'per agent degree inequality {} {}'.format(a, n)
         
         
-    print('creating subtour elimination inequalities...')
-    for s in tqdm(range(2, N)):
+    def find_violated_constraints(X):
+        variables = np.array([X['X_{{{},{},{}}}'.format(a, u, v)] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
+        is_fractional = False
+        Gall = nx.DiGraph()
+        helpGraphs = []
         for a in agents:
-            sa, ea = start_positions[a], end_positions[a]
-            for S in combinations(nodes[np.logical_and(nodes != sa, nodes != ea)], s):
-                S = list(S)
-                subTourEl = lpSum(variables[(a,) + np.ix_(S, S)]) <= s - 1
-                model += subTourEl, 'subtour elimination {} {}'.format(a, S)
+            Gall.add_edge('dummy_source', start_positions[a], capacity=float('inf'))
+            Gall.add_edge(end_positions[a], 'dummy_target', capacity=float('inf'))
+            G = nx.DiGraph()
+            for u, v in product(nodes, nodes):
+                weight = variables[a, u, v].value()
+                if weight > EPS:
+                    if weight < 1 - EPS:
+                        is_fractional = True
+                    G.add_edge(u, v)
+                    if Gall.has_edge(u, v):
+                        Gall.edges[u, v]['capacity'] += weight
+                    else:
+                        Gall.add_edge(u, v, capacity=weight)
+            helpGraphs.append(G)
+        
+        violated_constraints = []
+        if is_fractional:
+            # each agent has to pass a unit from dummy_source to dummy_target 
+            min_cut, (V, W) = nx.minimum_cut(Gall, 'dummy_source', 'dummy_target')
+            if min_cut < A - EPS:
+                print('violated min cut')
+                assert not ('dummy_source' in V or 'dummy_target' in W)
+                violated_constraints.append(lpSum(variables[np.ix_(agents, list(V), list(W))]) >= A)
+        else:
+            for G in helpGraphs:
+                # feasable solutions cannot have strongly connected components
+                for comp in nx.strongly_connected_components(G):
+                    if len(comp) > 1:
+                        comp = list(comp)
+                        print('found strongly connected component')
+                        violated_constraints.append(lpSum(variables[np.ix_(agents, comp, comp)]) <= len(comp) - 1)
+        return violated_constraints
 
-    #print(model)
+    print(model)
 
-    model.solve()
+    result_vars, _ = branch_and_cut(model, find_violated_constraints=find_violated_constraints)
+    for v in variables.reshape((-1,)):
+        v.varValue = result_vars[v.name].value()
 
     print([v.name for v in variables.reshape((-1,)) if v.value() == 1])
     
@@ -136,7 +169,7 @@ if __name__ == '__main__':
     np.random.seed(42)
 
     G = nx.complete_graph(N).to_directed()
-    weights = np.random.randint(1, 10, size=(N, N))
+    weights = np.random.randint(1, 100, size=(N, N))
     weights_dict = {(u, v): {'weight': weights[u, v]} for u, v in G.edges}
     nx.set_edge_attributes(G, weights_dict)
     print('created random graph K', N)
