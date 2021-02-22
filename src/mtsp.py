@@ -92,7 +92,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
         
     def find_violated_constraints(X):
         variables = np.array([X['X_{{{},{},{}}}'.format(a, u, v)] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
-        is_fractional = False
+        is_fractional = any(EPS <= v.value() <= 1 - EPS for v in variables.reshape((-1,)))
         Gall = nx.DiGraph()
         helpGraphs = []
         for a in agents:
@@ -101,9 +101,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
             G = nx.DiGraph()
             for u, v in product(nodes, nodes):
                 weight = variables[a, u, v].value()
-                if weight > EPS:
-                    if weight < 1 - EPS:
-                        is_fractional = True
+                if is_fractional or weight > 1 - EPS:
                     G.add_edge(u, v)
                     if Gall.has_edge(u, v):
                         Gall.edges[u, v]['capacity'] += weight
@@ -120,16 +118,16 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
                 assert not ('dummy_source' in V or 'dummy_target' in W)
                 violated_constraints.append(lpSum(variables[np.ix_(agents, list(V), list(W))]) >= A)
         else:
-            for G in helpGraphs:
+            for a in agents:
                 # feasable solutions cannot have strongly connected components
-                for comp in nx.strongly_connected_components(G):
+                for comp in nx.strongly_connected_components(helpGraphs[a]):
                     if len(comp) > 1:
                         comp = list(comp)
-                        print('found strongly connected component')
-                        violated_constraints.append(lpSum(variables[np.ix_(agents, comp, comp)]) <= len(comp) - 1)
+                        print('agent {} has a strongly connected component: {}'.format(a, sorted(comp)))
+                        violated_constraints.append(lpSum(variables[(a,) + np.ix_(comp, comp)]) <= len(comp) - 1)
         return violated_constraints
 
-    print(model)
+    #print(model)
 
     result_vars, _ = branch_and_cut(model, find_violated_constraints=find_violated_constraints)
     for v in variables.reshape((-1,)):
