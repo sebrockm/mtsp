@@ -1,4 +1,4 @@
-from pulp import EPS, LpStatusOptimal, PULP_CBC_CMD
+from pulp import EPS, LpStatusOptimal, LpStatus, PULP_CBC_CMD
 import multiprocessing
 
 CPUS = multiprocessing.cpu_count()
@@ -21,12 +21,15 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         current_lp = S.pop()
         current_lp.solve(PULP_CBC_CMD(msg=False, threads=CPUS))
         if current_lp.status != LpStatusOptimal:
+            print('Status: {}'.format(LpStatus[current_lp.status]))
+            print('no feasible solution found for current LP, skipping it')
             continue
         
         current_lower_bound = current_lp.objective.value()
         lower_bound = max(lower_bound, current_lower_bound)
 
         if current_lower_bound >= upper_bound:
+            print('lower bound of current LP is bigger than global upper bound, skipping')
             continue
 
         variables = current_lp.variablesDict()
@@ -36,12 +39,14 @@ def branch_and_cut(lp, upper_bound = float('inf'),
             for b in B:
                 current_lp += b
             S.append(current_lp)
+            print('added {} violated constraints, solving LP again'.format(len(B)))
             continue
 
         fractional_var = find_fractional_var_name(variables)
         if fractional_var is None:
             upper_bound = current_lower_bound
             best_variables = variables
+            print('found feasible integer solution, updating upper bound')
             continue
             
         print('branching on fractional variable {} == {}'.format(fractional_var, variables[fractional_var].value()))
