@@ -4,11 +4,22 @@ import networkx as nx
 from itertools import product
 import tsplib95 as tsplib
 from tqdm import tqdm
-import argparse
 from bnc import branch_and_cut
+import time
+
+def timing(f):
+    def wrap(*args, **kwargs):
+        time1 = time.time()
+        ret = f(*args, **kwargs)
+        time2 = time.time()
+        print('{:s} took {:.3f} s'.format(f.__name__, time2 - time1))
+
+        return ret
+    return wrap
 
 optimization_modes = ['sum', 'max']
 
+@timing
 def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum'):
     assert optimization_mode in optimization_modes
     
@@ -18,7 +29,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     assert start_positions.size == end_positions.size
     A = start_positions.size
     
-    weights = np.array(weights)    
+    weights = np.array(weights)
     assert weights.ndim == 2
     assert weights.shape[0] == weights.shape[1]
     N = weights.shape[0]
@@ -135,6 +146,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     
 
 if __name__ == '__main__':
+    import argparse
+
     parser = argparse.ArgumentParser(description='Solving an mTSP with arbitrary start and end points')
     parser.add_argument('--agents', default=3, type=int, help='number of agents')
     parser.add_argument('--nodes', default=10, type=int, help='number of nodes')
@@ -147,12 +160,7 @@ if __name__ == '__main__':
 
     np.random.seed(42)
 
-    G = nx.complete_graph(N).to_directed()
     weights = np.random.randint(1, 100, size=(N, N))
-    weights_dict = {(u, v): {'weight': weights[u, v]} for u, v in G.edges}
-    nx.set_edge_attributes(G, weights_dict)
-    print('created random graph K', N)
-
     positions = np.random.choice(N, replace=False, size=2*A)
     start_positions = positions[:A]
     end_positions = positions[A:]
