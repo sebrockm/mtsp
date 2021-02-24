@@ -14,7 +14,7 @@ def branch_and_cut(lp, upper_bound = float('inf'),
                    find_fractional_var_name=get_first_fractional_var_name,
                    find_violated_constraints=None):
     S = [lp]
-    best_variables = None
+    best_variables = lp.variablesDict()
     info_string = 'len(S): {:>4d}, BOUNDS: [{:.5E}, {:.5E}] GAP: {:>6.2%}'
     while len(S) > 0:
         current_lp = S.pop()

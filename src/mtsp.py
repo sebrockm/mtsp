@@ -38,6 +38,31 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     
     nodes = np.arange(N)
     agents = np.arange(A)
+    
+    def objective(paths):
+        sums = [np.sum(weights[paths[a][:-1], paths[a][1:]]) for a in agents]
+        return sum(sums) if optimization_mode == 'sum' else max(sums)
+    
+    def mtsp_heuristic():
+        paths = [[start_positions[a], end_positions[a]] for a in agents]
+        for n in nodes:
+            if n not in start_positions and n not in end_positions:
+                min_obj, min_a, min_p = float('inf'), -1, None
+                for a in agents:
+                    for i in range(1, len(paths[a])):
+                        tmp_path = paths[a][:i] + [n] + paths[a][i:]
+                        obj = objective(paths[:a] + [tmp_path] + paths[a+1:])
+                        if obj < min_obj:
+                            min_obj, min_a, min_p = obj, a, tmp_path
+                paths[min_a] = min_p
+        return paths
+        
+    def paths_into_variables(paths, variables):
+        for v in variables.reshape((-1,)):
+            v.varValue = 0
+        for a in agents:
+            for v in variables[a, paths[a][:-1], paths[a][1:]]:
+                v.varValue = 1
 
     print('creating model...')
 
@@ -119,9 +144,13 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
                 
         return violated_constraints
 
+    heuristic_paths = mtsp_heuristic()
+    heuristic_solution = objective(heuristic_paths)
+    paths_into_variables(heuristic_paths, variables)
+
     #print(model)
 
-    result_vars, _ = branch_and_cut(model, find_violated_constraints=find_violated_constraints)
+    result_vars, _ = branch_and_cut(model, find_violated_constraints=find_violated_constraints, upper_bound=heuristic_solution)
     for v in variables.reshape((-1,)):
         v.varValue = result_vars[v.name].value()
 
