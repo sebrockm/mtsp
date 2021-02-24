@@ -10,8 +10,19 @@ def get_first_fractional_var_name(variables):
             return n
     return None
 
+def get_05_fractional_var_name(variables):
+    closest, min_abs = None, 1
+    for n, v in variables.items():
+        if n.startswith('X_') and EPS <= v.value() <= 1 - EPS:
+            if abs(v.value() - 0.5) < min_abs:
+                min_abs = abs(v.value() - 0.5)
+                closest = n
+                if min_abs == 0:
+                    break
+    return closest
+
 def branch_and_cut(lp, upper_bound = float('inf'), 
-                   find_fractional_var_name=get_first_fractional_var_name,
+                   find_fractional_var_name=get_05_fractional_var_name,
                    find_violated_constraints=None):
     S = [lp]
     best_variables = lp.variablesDict()
