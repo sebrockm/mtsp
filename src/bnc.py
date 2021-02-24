@@ -68,7 +68,7 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         cVariables = copy.variablesDict()
         cVariables[fractional_var].varValue = 1
         cVariables[fractional_var].fixValue()
-        S += [current_lp, copy]
+        S = [current_lp, copy] + S
         
     print(info_string.format(len(S), current_lower_bound, upper_bound, upper_bound/current_lower_bound-1))
     return best_variables, upper_bound
