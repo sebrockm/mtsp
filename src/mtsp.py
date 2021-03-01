@@ -131,6 +131,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     def find_violated_constraints(X):
         variables = np.array([X['X_{{{},{},{}}}'.format(a, u, v)] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
         
+        # create directed support graph
         G_sup = nx.DiGraph()
         for u, v in product(nodes, nodes):
             weight = lpSum(variables[:, u, v]).value()
@@ -145,8 +146,29 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
             length = lpSum(variables[:, cycle, shifted])
             if length.value() > len(cycle) - 1 + EPS:
                 violated_constraints.append(length <= len(cycle) - 1)
-                print('found subtour of {} nodes with length {}'.format(len(cycle), length))
-
+                print('found subtour of {} nodes with length {}'.format(len(cycle), length.value()))
+                
+        # create undirected support graph
+        G_sup = nx.Graph()
+        for u in nodes:
+            for v in range(u+1, N):
+                weight = lpSum(variables[:, [u, v], [v, u]]).value()
+                if weight > EPS:
+                    G_sup.add_edge(u, v, weight=weight)
+        
+        # identifying two-matching inequalities
+        for handle in nx.cycle_basis(G_sup):
+            handle_length = lpSum(variables[np.ix_(agents, handle, handle)])
+            weights_cut_edges = [(lpSum(variables[:, [u, v], [v, u]]), (u, v)) for u, v in product(handle, set(nodes) - set(handle))]
+            weights_cut_edges = [(w, e) for w, e in weights_cut_edges if w.value() > EPS]
+            weights_cut_edges = sorted(weights_cut_edges, key=lambda we: we[0].value(), reverse=True)
+            for k in range(1, len(weights_cut_edges) + 1, 2):
+                weights_teeth = weights_cut_edges[:k]
+                comb_length = handle_length + lpSum(w for w, e in weights_teeth)
+                if comb_length.value() > len(handle) + (k - 1) // 2 + EPS:
+                    violated_constraints.append(comb_length <= len(handle) + (k - 1) // 2)
+                    print('found comb with weight {} while {} is allowed'.format(comb_length.value(), len(handle) + (k - 1) // 2))
+            
         return violated_constraints
 
     heuristic_paths = mtsp_heuristic()
