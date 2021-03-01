@@ -131,17 +131,22 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     def find_violated_constraints(X):
         variables = np.array([X['X_{{{},{},{}}}'.format(a, u, v)] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
         
-        all_edges = {(u, v) for a, u, v in product(agents, nodes, nodes) if variables[a, u, v].value() > EPS}
-        Gall = nx.DiGraph(all_edges)
+        G_sup = nx.DiGraph()
+        for u, v in product(nodes, nodes):
+            weight = lpSum(variables[:, u, v]).value()
+            if weight > EPS:
+                G_sup.add_edge(u, v, weight=weight)
+        
+        violated_constraints = []
         
         # identifying subtours
-        violated_constraints = []
-        for cycle in nx.simple_cycles(Gall):
-            subset_length = lpSum(variables[np.ix_(agents, cycle, cycle)])
-            #print('found cycle: {} cycle length: {} sum variables: {}'.format(cycle, len(cycle), subset_length.value()))
-            if subset_length.value() > len(cycle) - 1 + EPS:
-                violated_constraints.append(subset_length <= len(cycle) - 1)
-                
+        for cycle in nx.simple_cycles(G_sup):
+            shifted = cycle[1:] + [cycle[0]]
+            length = lpSum(variables[:, cycle, shifted])
+            if length.value() > len(cycle) - 1 + EPS:
+                violated_constraints.append(length <= len(cycle) - 1)
+                print('found subtour of {} nodes with length {}'.format(len(cycle), length))
+
         return violated_constraints
 
     heuristic_paths = mtsp_heuristic()
