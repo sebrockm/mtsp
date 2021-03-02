@@ -27,6 +27,7 @@ def branch_and_cut(lp, upper_bound = float('inf'),
     S = [lp]
     best_variables = lp.variablesDict()
     info_string = 'len(S): {:>4d}, BOUNDS: [{:.5E}, {:.5E}] GAP: {:>6.2%}'
+    current_lower_bound = float('-inf')
     while len(S) > 0:
         current_lp = S.pop()
         current_lp.solve(PULP_CBC_CMD(msg=False, threads=CPUS))
@@ -70,5 +71,6 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         cVariables[fractional_var].fixValue()
         S = [current_lp, copy] + S
         
+    assert find_fractional_var_name(best_variables) is None
     print(info_string.format(len(S), current_lower_bound, upper_bound, upper_bound/current_lower_bound-1))
     return best_variables, upper_bound

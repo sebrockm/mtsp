@@ -39,22 +39,24 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     nodes = np.arange(N)
     agents = np.arange(A)
     
+    # artificially connect end positions i to start positions i+1 with zero cost
+    weights[end_positions, list(start_positions[1:]) + [start_positions[0]]] = 0
+    
     def objective(paths):
         sums = [np.sum(weights[paths[a][:-1], paths[a][1:]]) for a in agents]
         return sum(sums) if optimization_mode == 'sum' else max(sums)
     
     def mtsp_heuristic():
         paths = [[start_positions[a], end_positions[a]] for a in agents]
-        for n in nodes:
-            if n not in start_positions and n not in end_positions:
-                min_obj, min_a, min_p = float('inf'), -1, None
-                for a in agents:
-                    for i in range(1, len(paths[a])):
-                        tmp_path = paths[a][:i] + [n] + paths[a][i:]
-                        obj = objective(paths[:a] + [tmp_path] + paths[a+1:])
-                        if obj < min_obj:
-                            min_obj, min_a, min_p = obj, a, tmp_path
-                paths[min_a] = min_p
+        for n in set(nodes) - set(start_positions) - set(end_positions):
+            min_obj, min_a, min_p = float('inf'), -1, None
+            for a in agents:
+                for i in range(1, len(paths[a])):
+                    tmp_path = paths[a][:i] + [n] + paths[a][i:]
+                    obj = objective(paths[:a] + [tmp_path] + paths[a+1:])
+                    if obj < min_obj:
+                        min_obj, min_a, min_p = obj, a, tmp_path
+            paths[min_a] = min_p
         return paths
         
     def paths_into_variables(paths, variables):
@@ -73,60 +75,30 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     print('fixing some unused variables to zero...')
     # self referring arc (entries on diagonal)
     for v in variables[:, nodes, nodes].reshape((-1,)):
-        v.setInitialValue(0)
-        v.fixValue()
-
-    # arcs into start nodes
-    for v in variables[:, :, start_positions].reshape((-1,)):
-        v.setInitialValue(0)
-        v.fixValue()
-
-    # arcs out of end nodes
-    for v in variables[:, end_positions, :].reshape((-1,)):
-        v.setInitialValue(0)
-        v.fixValue()
-        
-    # arcs out of start nodes of wrong agents
-    for a in agents:
-        for v in variables[agents != a, start_positions[a], :].reshape((-1,)):
-            v.setInitialValue(0)
-            v.fixValue()
-        
-    # arcs into end nodes of wrong agents
-    for a in agents:
-        for v in variables[agents != a, :, end_positions[a]].reshape((-1,)):
-            v.setInitialValue(0)
-            v.fixValue()
+        model += v == 0
 
     if optimization_mode == 'sum':
         obj_func = lpSum(variables * weights)
         model += obj_func
     elif optimization_mode == 'max':
-        max_route_length = LpVariable('max rout length')
+        max_route_length = LpVariable('max route length')
         model += max_route_length # objective function: minimize max route length
         for a in agents:
             model += max_route_length >= lpSum(variables[a] * weights)
 
-    print('creating degree inequalities of start and end positions...')
-    for a in agents:
-        outStartIneq = lpSum(variables[a, start_positions[a], :]) == 1
-        inEndIneq = lpSum(variables[a, :, end_positions[a]]) == 1
-        model += outStartIneq, 'outdegree inequality of start position of {}'.format(a)
-        model += inEndIneq, 'indegree inequality of end position of {}'.format(a)
-
-    print('creating degree inequalities for ordinary nodes...')
+    print('creating degree inequalities...')
     for n in nodes:
-        if not n in start_positions and not n in end_positions:
-            inDegreeIneq = lpSum(variables[:, :, n]) == 1
-            outDegreeIneq = lpSum(variables[:, n, :]) == 1
-            model += inDegreeIneq, 'indegree inequality ' + str(n)
-            model += outDegreeIneq, 'outdegree inequality ' + str(n)
+        model += lpSum(variables[:, :, n]) == 1
+        model += lpSum(variables[:, n, :]) == 1
+        if n not in start_positions:
             for a in agents:
-                perAgentDegreesIneq = lpSum(variables[a, :, n]) == lpSum(variables[a, n, :])
-                model += perAgentDegreesIneq, 'per agent degree inequality {} {}'.format(a, n)    
+                model += lpSum(variables[a, :, n]) == lpSum(variables[a, n, :])
     
-    for u, v in product(nodes, nodes):
-        model += lpSum(variables[:, u, v]) <= 1
+    print('special inequalities for start and end nodes')
+    for a in agents:
+        model += lpSum(variables[a, start_positions[a], :]) == 1 # arcs out of start nodes
+        model += lpSum(variables[a, :, end_positions[a]]) == 1 # arcs into end nodes
+        model += variables[a, end_positions[a], start_positions[(a + 1) % A]] == 1 # artificial connections from end to next start
         
     def find_violated_constraints(X):
         variables = np.array([X['X_{{{},{},{}}}'.format(a, u, v)] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
@@ -142,6 +114,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
         
         # identifying subtours
         for cycle in nx.simple_cycles(G_sup):
+            if len(cycle) >= N:
+                continue
             shifted = cycle[1:] + [cycle[0]]
             length = lpSum(variables[:, cycle, shifted])
             if length.value() > len(cycle) - 1 + EPS:
