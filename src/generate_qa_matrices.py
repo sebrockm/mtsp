@@ -18,8 +18,9 @@ def compute_distance(lon1, lat1, lon2, lat2):
 
     return abs(d)
 
-def generate_cost_matrix(positions_array, positions_count, random_seed):
-    np.random.seed(random_seed)
+def generate_cost_matrix(positions_array, positions_count, random_seed=None):
+    if random_seed is not None:
+        np.random.seed(random_seed)
     np.random.shuffle(positions_array)
     # print(positions_array)
 
