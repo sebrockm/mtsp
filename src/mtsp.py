@@ -73,6 +73,14 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
         for a in agents:
             assert paths[a][0] == start_positions[a]
             assert paths[a][-1] == end_positions[a]
+        G = nx.DiGraph()
+        for a in agents:
+            for u, v in zip(paths[a], paths[a][1:]):
+                G.add_edge(u, v)
+            G.add_edge(end_positions[a], start_positions[(a+1)%A])
+        cycles = list(nx.simple_cycles(G))
+        assert len(cycles) == 1
+        assert len(cycles[0]) == N
 
     print('creating model...')
 
@@ -162,7 +170,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     result_vars, _ = branch_and_cut(model, find_violated_constraints=find_violated_constraints, upper_bound=heuristic_solution)
     for v in variables.reshape((-1,)):
         v.varValue = result_vars[v.name].value()
-
+    
+    result_values = np.array([v.value() for v in variables.reshape((-1,))]).reshape(variables.shape)
     used_edges = [v.name for v in variables.reshape((-1,)) if abs(v.value() - 1) < EPS]
     print(used_edges)
     assert len(used_edges) == N
@@ -176,7 +185,9 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
         while i != end_positions[a]:
             path.append(i)
             prev_i = i
-            i = np.argmax([v.value() for v in variables[a, i]])
+            where = np.where(np.abs(result_values[a, i, :] - 1) < EPS)
+            assert len(where[0]) == 1
+            i = where[0][0]
             length += weights[prev_i, i]
         path.append(i)
         paths.append(path)
