@@ -119,25 +119,6 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     def find_violated_constraints(X):
         variables = np.array([X['X_{{{},{},{}}}'.format(a, u, v)] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
         
-        # create directed support graph
-        G_sup = nx.DiGraph()
-        for u, v in product(nodes, nodes):
-            weight = lpSum(variables[:, u, v]).value()
-            if weight > EPS:
-                G_sup.add_edge(u, v, weight=weight)
-        
-        violated_constraints = []
-        
-        # identifying subtours
-        for cycle in nx.simple_cycles(G_sup):
-            if len(cycle) >= N:
-                continue
-            shifted = cycle[1:] + [cycle[0]]
-            length = lpSum(variables[:, cycle, shifted])
-            if length.value() > len(cycle) - 1 + EPS:
-                violated_constraints.append(length <= len(cycle) - 1)
-                print('found subtour of {} nodes with length {}'.format(len(cycle), length.value()))
-                
         # create undirected support graph
         G_sup = nx.Graph()
         for u in nodes:
@@ -145,6 +126,23 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
                 weight = lpSum(variables[:, [u, v], [v, u]]).value()
                 if weight > EPS:
                     G_sup.add_edge(u, v, weight=weight)
+        
+        violated_constraints = []
+        
+        components = list(nx.connected_components(G_sup))
+        if len(components) == 1: # there is only one component, so identify fractional subtours using undirected cut
+            cut_value, (U, V) = nx.stoer_wagner(G_sup)
+            if cut_value < 2 - EPS:
+                ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
+                violated_constraints.append(ucut)
+                print(f'found violated ucut with cut value {cut_value}')
+                
+        else: # there is more than one component, so require each of them to be connected to the rest via two edges
+            U = list(components[0])
+            V = list(set(nodes) - components[0])
+            ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
+            violated_constraints.append(ucut)
+            print('found several connected components')
         
         # identifying two-matching inequalities
         for handle in nx.cycle_basis(G_sup):
