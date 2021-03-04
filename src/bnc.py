@@ -24,10 +24,13 @@ def get_05_fractional_var_name(variables):
 def branch_and_cut(lp, upper_bound = float('inf'), 
                    find_fractional_var_name=get_05_fractional_var_name,
                    find_violated_constraints=None):
-    S = [lp]
-    best_variables = lp.variablesDict()
     info_string = 'len(S): {:>4d}, BOUNDS: [{:.5E}, {:.5E}] GAP: {:>6.2%}'
+    
+    S = [lp]
     current_lower_bound = float('-inf')
+    best_variables = deepcopy(lp.variablesDict())
+    assert find_fractional_var_name(best_variables) is None
+    
     while len(S) > 0:
         current_lp = S.pop()
         current_lp.solve(PULP_CBC_CMD(msg=False, threads=CPUS))
@@ -56,13 +59,13 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         fractional_var = find_fractional_var_name(variables)
         if fractional_var is None:
             upper_bound = current_lower_bound
-            best_variables = variables
+            best_variables = deepcopy(variables)
             print('found feasible integer solution, updating upper bound')
             continue
             
         print('branching on fractional variable {} == {}'.format(fractional_var, variables[fractional_var].value()))
 
-        copy = deepcopy(current_lp)       
+        copy = deepcopy(current_lp)
         variables[fractional_var].varValue = 0
         variables[fractional_var].fixValue()
         

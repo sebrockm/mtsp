@@ -14,7 +14,7 @@ def timing(f):
         time2 = time.time()
         print('{:s} took {:.3f} s'.format(f.__name__, time2 - time1))
 
-        return ret
+        return ret, time2 - time1
     return wrap
 
 optimization_modes = ['sum', 'max']
@@ -177,27 +177,51 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
 
 if __name__ == '__main__':
     import argparse
+    from generate_qa_matrices import positions, generate_cost_matrix
 
     parser = argparse.ArgumentParser(description='Solving an mTSP with arbitrary start and end points')
     parser.add_argument('--agents', default=3, type=int, help='number of agents')
     parser.add_argument('--nodes', default=10, type=int, help='number of nodes')
     parser.add_argument('--mode', default='sum', choices=optimization_modes)
+    parser.add_argument('--bench-file', default=None, help='if provided, performs a benchmark an writes the result into that file')
 
     args = parser.parse_args()
-    N = args.nodes
-    A = args.agents
-    mode = args.mode
+    bench_file = args.bench_file
 
     np.random.seed(42)
-
-    weights = np.random.randint(1, 100, size=(N, N))
-    positions = np.random.choice(N, replace=False, size=2*A)
-    start_positions = positions[:A]
-    end_positions = positions[A:]
-    print('start positions:', start_positions)
-    print('end positions:', end_positions)
     
-    paths, lengths = solve_mtsp(start_positions, end_positions, weights, mode);
+    if bench_file is not None:
+        bench_nodes = range(5, args.nodes + 1)
+        bench_agents = range(1, args.agents + 1)
+        bench_modes = ['sum', 'max']
+        repititions = 10
+    else:
+        bench_nodes = [args.nodes]
+        bench_agents = [args.agents]
+        bench_modes = [args.mode]
+        repititions = 1
     
-    for i, (path, length) in enumerate(zip(paths, lengths)):
-        print('{}: {} length={}'.format(i, path, length))
+    for N in bench_nodes:
+        weights = generate_cost_matrix(positions, N)
+        for A in bench_agents:
+            if 2 * A > N:
+                continue
+            special_positions = np.random.choice(N, replace=False, size=2*A)
+            start_positions = special_positions[:A]
+            end_positions = special_positions[A:]
+            print('start positions:', start_positions)
+            print('end positions:', end_positions)
+            
+            for mode in bench_modes:
+                times = []
+                for _ in range(repititions):
+                    
+                    (paths, lengths), seconds = solve_mtsp(start_positions, end_positions, weights, mode);
+                    
+                    for i, (path, length) in enumerate(zip(paths, lengths)):
+                        print('{}: {} length={}'.format(i, path, length))
+                        
+                    times.append(seconds)
+                    
+                with open(bench_file, 'a') as f:
+                    f.write(f'N={N:>3d} A={A:>3d} mode={mode} time={sum(times)/len(times):>7.3f}s\n')
