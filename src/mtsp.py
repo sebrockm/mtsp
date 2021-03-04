@@ -214,14 +214,18 @@ if __name__ == '__main__':
             
             for mode in bench_modes:
                 times = []
+                results = []
                 for _ in range(repititions):
                     
-                    (paths, lengths), seconds = solve_mtsp(start_positions, end_positions, weights, mode);
+                    (paths, lengths), seconds = solve_mtsp(start_positions, end_positions, weights, mode)
+                    result = sum(lengths) if mode == 'sum' else max(lengths)
                     
                     for i, (path, length) in enumerate(zip(paths, lengths)):
                         print('{}: {} length={}'.format(i, path, length))
                         
                     times.append(seconds)
+                    results.append(result)
                     
+                assert results.count(results[0]) == len(results)
                 with open(bench_file, 'a') as f:
-                    f.write(f'N={N:>3d} A={A:>3d} mode={mode} time={sum(times)/len(times):>7.3f}s\n')
+                    f.write(f'N={N:>3d} A={A:>3d} mode={mode} time={sum(times)/len(times):>7.3f}s result={results[0]:>10d}\n')
