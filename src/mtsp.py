@@ -65,6 +65,14 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
         for a in agents:
             for v in variables[a, paths[a][:-1], paths[a][1:]]:
                 v.varValue = 1
+            variables[a, paths[a][-1], paths[(a+1)%A][0]].varValue = 1
+                
+    def validate_result(paths):
+        reached_nodes = [n for path in paths for n in path]
+        assert sorted(reached_nodes) == list(nodes)
+        for a in agents:
+            assert paths[a][0] == start_positions[a]
+            assert paths[a][-1] == end_positions[a]
 
     print('creating model...')
 
@@ -155,7 +163,9 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     for v in variables.reshape((-1,)):
         v.varValue = result_vars[v.name].value()
 
-    print([v.name for v in variables.reshape((-1,)) if v.value() == 1])
+    used_edges = [v.name for v in variables.reshape((-1,)) if abs(v.value() - 1) < EPS]
+    print(used_edges)
+    assert len(used_edges) == N
     
     paths = []
     lengths = []
@@ -171,7 +181,9 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
         path.append(i)
         paths.append(path)
         lengths.append(length)
-        
+    
+    validate_result(paths)
+    
     return paths, lengths
     
 
