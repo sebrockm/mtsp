@@ -198,13 +198,14 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
 
     #print(model)
 
-    result_vars, _ = branch_and_cut(model, find_violated_constraints=find_violated_constraints, upper_bound=heuristic_solution)
+    result_vars, (lb, ub) = branch_and_cut(model, find_violated_constraints=find_violated_constraints, upper_bound=heuristic_solution)
     for v in variables.reshape((-1,)):
         v.varValue = result_vars[v.name].value()
     
     result_values = np.array([v.value() for v in variables.reshape((-1,))]).reshape(variables.shape)
     used_edges = [v.name for v in variables.reshape((-1,)) if abs(v.value() - 1) < EPS]
     print(used_edges)
+    print(f'result: {ub} GAP: {ub/lb-1:.2%}')
     assert len(used_edges) == N
     
     paths = []
@@ -281,5 +282,9 @@ if __name__ == '__main__':
                     results.append(result)
                     
                 assert results.count(results[0]) == len(results)
-                with open(bench_file, 'a') as f:
-                    f.write(f'N={N:>3d} A={A:>3d} mode={mode} time={sum(times)/len(times):>7.3f}s result={results[0]:>10d}\n')
+                
+                result_string = f'N={N:>3d} A={A:>3d} mode={mode} time={sum(times)/len(times):>7.3f}s result={results[0]:>10d}\n'
+                print(result_string)
+                if bench_file is not None:
+                    with open(bench_file, 'a') as f:
+                        f.write(result_string)

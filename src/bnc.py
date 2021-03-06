@@ -27,22 +27,24 @@ def branch_and_cut(lp, upper_bound = float('inf'),
     info_string = 'len(S): {:>4d}, BOUNDS: [{:.5E}, {:.5E}] GAP: {:>6.2%}'
     
     S = [lp]
-    current_lower_bound = float('-inf')
+    lower_bound = float('-inf')
     best_variables = deepcopy(lp.variablesDict())
     assert find_fractional_var_name(best_variables) is None
     
     while len(S) > 0:
         current_lp = S.pop()
         current_lp.solve(PULP_CBC_CMD(msg=False, threads=CPUS))
+        
         if current_lp.status != LpStatusOptimal:
             print('Status: {}'.format(LpStatus[current_lp.status]))
             print('no feasible solution found for current LP, skipping it')
             continue
         
-        current_lower_bound = current_lp.objective.value()
-        print(info_string.format(len(S), current_lower_bound, upper_bound, upper_bound/current_lower_bound-1))
+        current_lp.lower_bound = current_lp.objective.value()
+        lower_bound = min(upper_bound, min(lp.lower_bound for lp in S + [current_lp]))
+        print(info_string.format(len(S), lower_bound, upper_bound, upper_bound/lower_bound-1))
 
-        if current_lower_bound >= upper_bound:
+        if current_lp.lower_bound >= upper_bound:
             print('lower bound of current LP is bigger than global upper bound, skipping')
             continue
 
@@ -58,7 +60,7 @@ def branch_and_cut(lp, upper_bound = float('inf'),
 
         fractional_var = find_fractional_var_name(variables)
         if fractional_var is None:
-            upper_bound = current_lower_bound
+            upper_bound = current_lp.lower_bound
             best_variables = deepcopy(variables)
             print('found feasible integer solution, updating upper bound')
             continue
@@ -75,5 +77,5 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         S = [current_lp, copy] + S
         
     assert find_fractional_var_name(best_variables) is None
-    print(info_string.format(len(S), current_lower_bound, upper_bound, upper_bound/current_lower_bound-1))
-    return best_variables, upper_bound
+    print(info_string.format(len(S), lower_bound, upper_bound, upper_bound/lower_bound-1))
+    return best_variables, (lower_bound, upper_bound)
