@@ -145,8 +145,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
             violated_constraints.append(ucut)
             print('found several connected components')
         
-        if len(violated_constraints) == 0:
-            assert len(components) == 1
+        for component in components:
             # identifying two-matching inequalities
             E_gr = nx.subgraph_view(G_sup, filter_edge=lambda u, v: G_sup.edges[u, v]['weight'] > 0.5).edges
             odd = np.array([len(E_gr(v)) % 2 for v in nodes])
@@ -155,13 +154,10 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
             def capacity(F):
                 return np.sum([G_sup.edges[e]['capacity'] for e in F])
             
-            T = nx.gomory_hu_tree(G_sup, capacity='capacity')
-            assert nx.is_tree(T)
+            T = nx.gomory_hu_tree(nx.subgraph_view(G_sup, filter_node=nx.filters.show_nodes(component)), capacity='capacity')
             for e in T.edges:
                 S_i, V_S_i = nx.connected_components(nx.subgraph_view(T, filter_edge=nx.filters.hide_edges([e])))
-                if np.sum(odd[list(S_i)]) == 0 or np.sum(odd[list(V_S_i)]) == 0:
-                    continue # the cut must be between a pair of odd nodes
-                    
+                
                 cut_edges = set(nx.edge_boundary(G_sup, S_i))
                 cut_size = capacity(cut_edges)
                 F = {e for e in cut_edges if e in E_gr}
@@ -173,32 +169,25 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
                     rhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in F) - len(F) + 1
                     violated_constraints.append(lhs >= rhs)
                     print('found violated comb inequality')
-                    #input('ENTER1')
                     break
                     
                 E1 = F
                 E2 = {e for e in cut_edges if e not in E_gr}
                 
                 w1, e1 = min((G_sup.edges[e]['weight'], e) for e in E1) if len(E1) > 0 else (1, None)
-                assert w1 >= 0.5
                 w2, e2 = max((G_sup.edges[e]['weight'], e) for e in E2) if len(E2) > 0 else (0, None)
-                assert w2 <= 0.5
                 
                 if not is_odd(S_i) and cut_size + min(w1 - (1 - w1), (1 - w2) - w2) < 1 - EPS:
-                    assert len(F) % 2 == 0
                     if w1 - (1 - w1) < (1 - w2) - w2:
-                        assert e1 in F
                         F -= {e1}
                     else:
-                        assert e1 not in F
-                        F += {e2}
+                        F |= {e2}
                     assert len(F) % 2 == 1
                     all_cut_edges_but_F = [(u, v) for u, v in nx.edge_boundary(G, S_i) if (u, v) not in F and (v, u) not in F]
                     lhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in all_cut_edges_but_F)
                     rhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in F) - len(F) + 1
                     violated_constraints.append(lhs >= rhs)
                     print('found violated comb inequality')
-                    #input('ENTER2')
                     break
             
         return violated_constraints
@@ -259,7 +248,7 @@ if __name__ == '__main__':
         bench_nodes = range(5, args.nodes + 1)
         bench_agents = range(1, args.agents + 1)
         bench_modes = ['sum', 'max']
-        repititions = 10
+        repititions = 3
     else:
         bench_nodes = [args.nodes]
         bench_agents = [args.agents]
