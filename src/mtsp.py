@@ -20,7 +20,8 @@ def timing(f):
 optimization_modes = ['sum', 'max']
 
 @timing
-def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum'):
+def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum', time_limit=float('inf')):
+    start_time = time.time()
     assert optimization_mode in optimization_modes
     
     start_positions = np.array(start_positions)
@@ -197,15 +198,18 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     paths_into_variables(heuristic_paths, variables)
 
     #print(model)
-
-    result_vars, (lb, ub) = branch_and_cut(model, find_violated_constraints=find_violated_constraints, upper_bound=heuristic_solution)
+    
+    bnc_time_limit = time_limit - (time.time() - start_time)
+    result_vars, (lb, ub) = branch_and_cut(model, find_violated_constraints=find_violated_constraints,
+                                           upper_bound=heuristic_solution, time_limit=bnc_time_limit)
     for v in variables.reshape((-1,)):
         v.varValue = result_vars[v.name].value()
     
     result_values = np.array([v.value() for v in variables.reshape((-1,))]).reshape(variables.shape)
     used_edges = [v.name for v in variables.reshape((-1,)) if abs(v.value() - 1) < EPS]
     print(used_edges)
-    print(f'result: {ub} GAP: {ub/lb-1:.2%}')
+    gap = ub / lb - 1
+    print(f'result: {ub} GAP: {gap:.2%}')
     assert len(used_edges) == N
     
     paths = []
@@ -227,7 +231,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum')
     
     validate_result(paths)
     
-    return paths, lengths
+    return paths, lengths, gap
     
 
 if __name__ == '__main__':
@@ -237,11 +241,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Solving an mTSP with arbitrary start and end points')
     parser.add_argument('--agents', default=3, type=int, help='number of agents')
     parser.add_argument('--nodes', default=10, type=int, help='number of nodes')
-    parser.add_argument('--mode', default='sum', choices=optimization_modes)
+    parser.add_argument('--mode', default='sum', choices=optimization_modes, help='minimize the sum (default) or maximum of all routes')
     parser.add_argument('--bench-file', default=None, help='if provided, performs a benchmark an writes the result into that file')
+    parser.add_argument('--time-limit', default=float('inf'), type=float, help='time limit in seconds; if passed, a heuristic solution is returned')
 
     args = parser.parse_args()
     bench_file = args.bench_file
+    time_limit = args.time_limit
 
     np.random.seed(42)
     
@@ -270,9 +276,10 @@ if __name__ == '__main__':
             for mode in bench_modes:
                 times = []
                 results = []
+                gaps = []
                 for _ in range(repititions):
                     
-                    (paths, lengths), seconds = solve_mtsp(start_positions, end_positions, weights, mode)
+                    (paths, lengths, gap), seconds = solve_mtsp(start_positions, end_positions, weights, mode, time_limit)
                     result = sum(lengths) if mode == 'sum' else max(lengths)
                     
                     for i, (path, length) in enumerate(zip(paths, lengths)):
@@ -280,10 +287,9 @@ if __name__ == '__main__':
                         
                     times.append(seconds)
                     results.append(result)
-                    
-                assert results.count(results[0]) == len(results)
+                    gaps.append(gap)
                 
-                result_string = f'N={N:>3d} A={A:>3d} mode={mode} time={sum(times)/len(times):>7.3f}s result={results[0]:>10d}\n'
+                result_string = f'N={N:>3d} A={A:>3d} mode={mode} time={np.mean(times):>7.3f}s result={np.min(results):>10d} gap={np.min(gaps):>7.2%}\n'
                 print(result_string)
                 if bench_file is not None:
                     with open(bench_file, 'a') as f:

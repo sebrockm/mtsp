@@ -1,34 +1,34 @@
-N=  5 A=  1 mode=sum time=  0.047s result=   1707504
-N=  5 A=  1 mode=max time=  0.047s result=   1707504
-N=  5 A=  2 mode=sum time=  0.028s result=   1512762
-N=  5 A=  2 mode=max time=  0.080s result=   1151961
-N=  6 A=  1 mode=sum time=  0.056s result=    947004
-N=  6 A=  1 mode=max time=  0.056s result=    947004
-N=  6 A=  2 mode=sum time=  0.028s result=    761372
-N=  6 A=  2 mode=max time=  0.084s result=    412573
-N=  6 A=  3 mode=sum time=  0.036s result=    906656
-N=  6 A=  3 mode=max time=  0.035s result=    372891
-N=  7 A=  1 mode=sum time=  0.086s result=   1620248
-N=  7 A=  1 mode=max time=  0.127s result=   1620248
-N=  7 A=  2 mode=sum time=  0.068s result=   1064609
-N=  7 A=  2 mode=max time=  0.164s result=    573638
-N=  7 A=  3 mode=sum time=  0.042s result=   1198527
-N=  7 A=  3 mode=max time=  0.039s result=    669744
-N=  8 A=  1 mode=sum time=  0.116s result=   2157837
-N=  8 A=  1 mode=max time=  0.115s result=   2157837
-N=  8 A=  2 mode=sum time=  0.042s result=   1903752
-N=  8 A=  2 mode=max time=  0.766s result=   1105829
-N=  8 A=  3 mode=sum time=  0.046s result=   1646466
-N=  8 A=  3 mode=max time=  0.044s result=    828832
-N=  9 A=  1 mode=sum time=  0.068s result=   1380989
-N=  9 A=  1 mode=max time=  0.066s result=   1380989
-N=  9 A=  2 mode=sum time=  0.047s result=   1309788
-N=  9 A=  2 mode=max time=  0.830s result=    926153
-N=  9 A=  3 mode=sum time=  0.045s result=   1059493
-N=  9 A=  3 mode=max time=  0.044s result=    476086
-N= 10 A=  1 mode=sum time=  0.147s result=   2150039
-N= 10 A=  1 mode=max time=  0.151s result=   2150039
-N= 10 A=  2 mode=sum time=  0.122s result=   2108443
-N= 10 A=  2 mode=max time=  3.139s result=   1247619
-N= 10 A=  3 mode=sum time=  0.089s result=   2319048
-N= 10 A=  3 mode=max time=  4.078s result=   1027056
+N=  5 A=  1 mode=sum time=  0.049s result=   1707504 gap=  0.00%
+N=  5 A=  1 mode=max time=  0.055s result=   1707504 gap=  0.00%
+N=  5 A=  2 mode=sum time=  0.031s result=   1512762 gap=  0.00%
+N=  5 A=  2 mode=max time=  0.086s result=   1151961 gap=  0.00%
+N=  6 A=  1 mode=sum time=  0.058s result=    947004 gap=  0.00%
+N=  6 A=  1 mode=max time=  0.058s result=    947004 gap=  0.00%
+N=  6 A=  2 mode=sum time=  0.033s result=    761372 gap=  0.00%
+N=  6 A=  2 mode=max time=  0.090s result=    412573 gap=  0.00%
+N=  6 A=  3 mode=sum time=  0.037s result=    906656 gap=  0.00%
+N=  6 A=  3 mode=max time=  0.036s result=    372891 gap=  0.00%
+N=  7 A=  1 mode=sum time=  0.084s result=   1620248 gap=  0.00%
+N=  7 A=  1 mode=max time=  0.091s result=   1620248 gap=  0.00%
+N=  7 A=  2 mode=sum time=  0.073s result=   1064609 gap=  0.00%
+N=  7 A=  2 mode=max time=  0.172s result=    573638 gap=  0.00%
+N=  7 A=  3 mode=sum time=  0.073s result=   1198527 gap=  0.00%
+N=  7 A=  3 mode=max time=  0.041s result=    669744 gap=  0.00%
+N=  8 A=  1 mode=sum time=  0.130s result=   2157837 gap=  0.00%
+N=  8 A=  1 mode=max time=  0.127s result=   2157837 gap=  0.00%
+N=  8 A=  2 mode=sum time=  0.045s result=   1903752 gap=  0.00%
+N=  8 A=  2 mode=max time=  0.762s result=   1105829 gap=  0.00%
+N=  8 A=  3 mode=sum time=  0.045s result=   1646466 gap=  0.00%
+N=  8 A=  3 mode=max time=  0.046s result=    828832 gap=  0.00%
+N=  9 A=  1 mode=sum time=  0.066s result=   1380989 gap=  0.00%
+N=  9 A=  1 mode=max time=  0.064s result=   1380989 gap=  0.00%
+N=  9 A=  2 mode=sum time=  0.049s result=   1309788 gap=  0.00%
+N=  9 A=  2 mode=max time=  0.811s result=    926153 gap=  0.00%
+N=  9 A=  3 mode=sum time=  0.044s result=   1059493 gap=  0.00%
+N=  9 A=  3 mode=max time=  0.074s result=    476086 gap=  0.00%
+N= 10 A=  1 mode=sum time=  0.146s result=   2150039 gap=  0.00%
+N= 10 A=  1 mode=max time=  0.145s result=   2150039 gap=  0.00%
+N= 10 A=  2 mode=sum time=  0.090s result=   2108443 gap=  0.00%
+N= 10 A=  2 mode=max time=  3.149s result=   1247619 gap=  0.00%
+N= 10 A=  3 mode=sum time=  0.088s result=   2319048 gap=  0.00%
+N= 10 A=  3 mode=max time=  4.013s result=   1027056 gap=  0.00%

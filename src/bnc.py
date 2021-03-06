@@ -1,6 +1,7 @@
 from pulp import EPS, LpStatusOptimal, LpStatus, PULP_CBC_CMD
 import multiprocessing
 from copy import deepcopy
+import time
 
 CPUS = multiprocessing.cpu_count()
 
@@ -21,9 +22,11 @@ def get_05_fractional_var_name(variables):
                     break
     return closest
 
-def branch_and_cut(lp, upper_bound = float('inf'), 
+def branch_and_cut(lp, upper_bound = float('inf'),
                    find_fractional_var_name=get_05_fractional_var_name,
-                   find_violated_constraints=None):
+                   find_violated_constraints=None,
+                   time_limit=float('inf')):
+    start_time = time.time()
     info_string = 'len(S): {:>4d}, BOUNDS: [{:.5E}, {:.5E}] GAP: {:>6.2%}'
     
     S = [lp]
@@ -31,7 +34,7 @@ def branch_and_cut(lp, upper_bound = float('inf'),
     best_variables = deepcopy(lp.variablesDict())
     assert find_fractional_var_name(best_variables) is None
     
-    while len(S) > 0:
+    while len(S) > 0 and time.time() - start_time < time_limit:
         current_lp = S.pop()
         current_lp.solve(PULP_CBC_CMD(msg=False, threads=CPUS))
         
