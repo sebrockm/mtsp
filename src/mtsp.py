@@ -116,7 +116,12 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
         model += lpSum(variables[a, start_positions[a], :]) == 1 # arcs out of start nodes
         model += lpSum(variables[a, :, end_positions[a]]) == 1 # arcs into end nodes
         model += variables[a, end_positions[a], start_positions[(a + 1) % A]] == 1 # artificial connections from end to next start
-        
+    
+    print('inequalities to disallow cycles of length 2')
+    for u in nodes:
+        for v in range(u + 1, N):
+            model += lpSum(variables[:, u, v] + variables[:, v, u]) <= 1
+    
     def find_violated_constraints(X):
         variables = np.array([X['X_{{{},{},{}}}'.format(a, u, v)] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
         
@@ -125,6 +130,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
         for u in nodes:
             for v in range(u+1, N):
                 weight = lpSum(variables[:, [u, v], [v, u]]).value()
+                assert -EPS < weight < 1 + EPS
+                weight = max(0, min(1, weight))
                 G.add_edge(u, v, weight=weight, capacity=min(weight, 1 - weight))
         
         G_sup = nx.subgraph_view(G, filter_edge=lambda u, v: G.edges[u, v]['weight'] > EPS)
@@ -150,10 +157,10 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
             # identifying two-matching inequalities
             E_gr = nx.subgraph_view(G_sup, filter_edge=lambda u, v: G_sup.edges[u, v]['weight'] > 0.5).edges
             odd = np.array([len(E_gr(v)) % 2 for v in nodes])
-            def is_odd(S):
-                return np.sum(odd[list(S)]) % 2 == 1
-            def capacity(F):
-                return np.sum([G_sup.edges[e]['capacity'] for e in F])
+            def is_odd(nodes):
+                return np.sum(odd[list(nodes)]) % 2 == 1
+            def capacity(edges):
+                return np.sum([G_sup.edges[e]['capacity'] for e in edges])
             
             T = nx.gomory_hu_tree(nx.subgraph_view(G_sup, filter_node=nx.filters.show_nodes(component)), capacity='capacity')
             for e in T.edges:
@@ -161,6 +168,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
                 
                 cut_edges = set(nx.edge_boundary(G_sup, S_i))
                 cut_size = capacity(cut_edges)
+                assert cut_size >= 0
                 F = {e for e in cut_edges if e in E_gr}
                 
                 if is_odd(S_i) and cut_size < 1 - EPS:
