@@ -1,7 +1,13 @@
-from pulp import EPS, LpStatusOptimal, LpStatus, PULP_CBC_CMD
+from pulp import EPS, LpStatusOptimal, LpStatus, PULP_CBC_CMD, LpProblem
 import multiprocessing
 from copy import deepcopy
 import time
+from queue import PriorityQueue
+
+# make LpProblem usable with PriorityQueue
+def le(self, other):
+    return self.lower_bound < other.lower_bound
+LpProblem.__lt__ = le
 
 CPUS = multiprocessing.cpu_count()
 
@@ -29,13 +35,15 @@ def branch_and_cut(lp, upper_bound = float('inf'),
     start_time = time.time()
     info_string = 'len(S): {:>4d}, BOUNDS: [{:.5E}, {:.5E}] GAP: {:>6.2%}'
     
-    S = [lp]
+    S = PriorityQueue()
     lower_bound = float('-inf')
+    lp.lower_bound = lower_bound
+    S.put(lp)
     best_variables = deepcopy(lp.variablesDict())
     assert find_fractional_var_name(best_variables) is None
     
-    while len(S) > 0 and time.time() - start_time < time_limit:
-        current_lp = S.pop()
+    while len(S.queue) > 0 and time.time() - start_time < time_limit:
+        current_lp = S.get()
         current_lp.solve(PULP_CBC_CMD(msg=False, threads=CPUS))
         
         if current_lp.status != LpStatusOptimal:
@@ -44,8 +52,11 @@ def branch_and_cut(lp, upper_bound = float('inf'),
             continue
         
         current_lp.lower_bound = current_lp.objective.value()
-        lower_bound = min(upper_bound, min(lp.lower_bound for lp in S + [current_lp]))
-        print(info_string.format(len(S), lower_bound, upper_bound, upper_bound/lower_bound-1))
+        lower_bound = min(upper_bound, current_lp.lower_bound)
+        if len(S.queue) > 0:
+            lower_bound = min(lower_bound, S.queue[0].lower_bound)
+            
+        print(info_string.format(len(S.queue), lower_bound, upper_bound, upper_bound/lower_bound-1))
 
         if current_lp.lower_bound >= upper_bound:
             print('lower bound of current LP is bigger than global upper bound, skipping')
@@ -57,7 +68,7 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         if len(B) > 0:
             for b in B:
                 current_lp += b
-            S.append(current_lp)
+            S.put(current_lp)
             print('added {} violated constraints, solving LP again'.format(len(B)))
             continue
 
@@ -77,8 +88,10 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         cVariables = copy.variablesDict()
         cVariables[fractional_var].varValue = 1
         cVariables[fractional_var].fixValue()
-        S = [current_lp, copy] + S
+        
+        S.put(current_lp)
+        S.put(copy)
         
     assert find_fractional_var_name(best_variables) is None
-    print(info_string.format(len(S), lower_bound, upper_bound, upper_bound/lower_bound-1))
+    print(info_string.format(len(S.queue), lower_bound, upper_bound, upper_bound/lower_bound-1))
     return best_variables, (lower_bound, upper_bound)
