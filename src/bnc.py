@@ -55,6 +55,9 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         lower_bound = min(upper_bound, current_lp.lower_bound)
         if len(S.queue) > 0:
             lower_bound = min(lower_bound, S.queue[0].lower_bound)
+        
+        if lower_bound >= upper_bound:
+            break
             
         print(info_string.format(len(S.queue), lower_bound, upper_bound, upper_bound/lower_bound-1))
 
@@ -77,7 +80,11 @@ def branch_and_cut(lp, upper_bound = float('inf'),
             upper_bound = current_lp.lower_bound
             best_variables = deepcopy(variables)
             print('found feasible integer solution, updating upper bound')
-            continue
+            assert lower_bound <= upper_bound + EPS, f'{lower_bound} <= {upper_bound}'
+            if lower_bound >= upper_bound:
+                break
+            else:
+                continue
             
         print('branching on fractional variable {} == {}'.format(fractional_var, variables[fractional_var].value()))
 
