@@ -140,17 +140,17 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
         
         components = list(nx.connected_components(G_sup))
         if len(components) == 1: # there is only one component, so identify fractional subtours using undirected cut
-            #cut_value, (U, V) = nx.stoer_wagner(G_sup, weight='weight')
-            #if cut_value < 2 - EPS:
-            #    ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
-            #    violated_constraints.append(ucut)
-            #    print(f'found violated ucut with cut value {cut_value}')
-            pass
+            cut_size, (U, V) = nx.stoer_wagner(G_sup, weight='weight')
+            if cut_size < 2 - EPS:
+                ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
+                violated_constraints.append(ucut)
+                print(f'found violated ucut with cut size {cut_size}')
         else: # there is more than one component, so require them to be connected to the rest via two edges
-            U = list(components[0])
-            V = list(set(nodes) - components[0])
-            ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
-            violated_constraints.append(ucut)
+            for component in components:
+                U = list(component)
+                V = list(set(nodes) - component)
+                ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
+                violated_constraints.append(ucut)
             print('found several connected components')
         
         for component in components:
@@ -178,7 +178,6 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
                     rhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in F) - len(F) + 1
                     violated_constraints.append(lhs >= rhs)
                     print('found violated comb inequality')
-                    break
                     
                 E1 = F
                 E2 = {e for e in cut_edges if e not in E_gr}
@@ -197,7 +196,6 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
                     rhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in F) - len(F) + 1
                     violated_constraints.append(lhs >= rhs)
                     print('found violated comb inequality')
-                    break
             
         return violated_constraints
 
