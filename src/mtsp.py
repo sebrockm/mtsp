@@ -12,7 +12,6 @@ def timing(f):
         time1 = time.time()
         ret = f(*args, **kwargs)
         time2 = time.time()
-        print('{:s} took {:.3f} s'.format(f.__name__, time2 - time1))
 
         return ret, time2 - time1
     return wrap
@@ -20,7 +19,7 @@ def timing(f):
 optimization_modes = ['sum', 'max']
 
 @timing
-def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum', time_limit=float('inf')):
+def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum', time_limit=float('inf'), verbosity=1):
     start_time = time.time()
     assert optimization_mode in optimization_modes
     
@@ -83,13 +82,15 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
         assert len(cycles) == 1
         assert len(cycles[0]) == N
 
-    print('creating model...')
+    if verbosity >= 2:
+        print('creating model...')
 
     model = LpProblem('tsp', LpMinimize)
     variable_names = ['{{{},{},{}}}'.format(a, u, v) for a, u, v in product(agents, nodes, nodes)]
     variables = np.array(LpVariable.matrix('X', variable_names, 0, 1)).reshape((A, N, N))
 
-    print('fixing some unused variables to zero...')
+    if verbosity >= 2:
+        print('fixing some unused variables to zero...')
     # self referring arc (entries on diagonal)
     for v in variables[:, nodes, nodes].reshape((-1,)):
         model += v == 0
@@ -103,7 +104,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
         for a in agents:
             model += max_route_length >= lpSum(variables[a] * weights)
 
-    print('creating degree inequalities...')
+    if verbosity >= 2:
+        print('creating degree inequalities...')
     for n in nodes:
         model += lpSum(variables[:, :, n]) == 1
         model += lpSum(variables[:, n, :]) == 1
@@ -111,13 +113,15 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
             for a in agents:
                 model += lpSum(variables[a, :, n]) == lpSum(variables[a, n, :])
     
-    print('special inequalities for start and end nodes')
+    if verbosity >= 2:
+        print('special inequalities for start and end nodes')
     for a in agents:
         model += lpSum(variables[a, start_positions[a], :]) == 1 # arcs out of start nodes
         model += lpSum(variables[a, :, end_positions[a]]) == 1 # arcs into end nodes
         model += variables[a, end_positions[a], start_positions[(a + 1) % A]] == 1 # artificial connections from end to next start
     
-    print('inequalities to disallow cycles of length 2')
+    if verbosity >= 2:
+        print('inequalities to disallow cycles of length 2')
     for u in nodes:
         for v in range(u + 1, N):
             model += lpSum(variables[:, u, v] + variables[:, v, u]) <= 1
@@ -144,14 +148,16 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
             if cut_size < 2 - EPS:
                 ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
                 violated_constraints.append(ucut)
-                print(f'found violated ucut with cut size {cut_size}')
+                if verbosity >= 2:
+                    print(f'found violated ucut with cut size {cut_size}')
         else: # there is more than one component, so require them to be connected to the rest via two edges
             for component in components:
                 U = list(component)
                 V = list(set(nodes) - component)
                 ucut = lpSum(variables[np.ix_(agents, U, V)]) + lpSum(variables[np.ix_(agents, V, U)]) >= 2
                 violated_constraints.append(ucut)
-            print('found several connected components')
+            if verbosity >= 2:
+                print('found several connected components')
         
         for component in components:
             # identifying two-matching inequalities
@@ -177,7 +183,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
                     lhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in all_cut_edges_but_F)
                     rhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in F) - len(F) + 1
                     violated_constraints.append(lhs >= rhs)
-                    print('found violated comb inequality')
+                    if verbosity >= 2:
+                        print('found violated comb inequality')
                     
                 E1 = F
                 E2 = {e for e in cut_edges if e not in E_gr}
@@ -195,7 +202,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
                     lhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in all_cut_edges_but_F)
                     rhs = lpSum(variables[:, u, v] + variables[:, v, u] for u, v in F) - len(F) + 1
                     violated_constraints.append(lhs >= rhs)
-                    print('found violated comb inequality')
+                    if verbosity >= 2:
+                        print('found violated comb inequality')
             
         return violated_constraints
 
@@ -203,7 +211,8 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
     heuristic_solution = objective(heuristic_paths)
     paths_into_variables(heuristic_paths, variables)
 
-    #print(model)
+    if verbosity >= 2:
+        print(model)
     
     bnc_time_limit = time_limit - (time.time() - start_time)
     result_vars, (lb, ub) = branch_and_cut(model, find_violated_constraints=find_violated_constraints,
@@ -213,9 +222,11 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
     
     result_values = np.array([v.value() for v in variables.reshape((-1,))]).reshape(variables.shape)
     used_edges = [v.name for v in variables.reshape((-1,)) if abs(v.value() - 1) < EPS]
-    print(used_edges)
+    if verbosity >= 2:
+        print(used_edges)
     gap = ub / lb - 1
-    print(f'result: {ub} GAP: {gap:.2%}')
+    if verbosity >= 1:
+        print(f'result: {ub} GAP: {gap:.2%}')
     assert len(used_edges) == N
     
     paths = []
@@ -250,10 +261,12 @@ if __name__ == '__main__':
     parser.add_argument('--mode', default='sum', choices=optimization_modes, help='minimize the sum (default) or maximum of all routes')
     parser.add_argument('--bench-file', default=None, help='if provided, performs a benchmark an writes the result into that file')
     parser.add_argument('--time-limit', default=float('inf'), type=float, help='time limit in seconds; if passed, a heuristic solution is returned')
+    parser.add_argument('--verbosity', default=1, type=int, help='verbosity of the output; default is 1')
 
     args = parser.parse_args()
     bench_file = args.bench_file
     time_limit = args.time_limit
+    verbosity = args.verbosity
 
     np.random.seed(42)
     
@@ -269,15 +282,16 @@ if __name__ == '__main__':
         repititions = 1
     
     for N in bench_nodes:
-        weights = generate_cost_matrix(positions, N)
+        weights = generate_cost_matrix(positions, N, verbosity=verbosity)
         for A in bench_agents:
             if 2 * A > N:
                 continue
             special_positions = np.random.choice(N, replace=False, size=2*A)
             start_positions = special_positions[:A]
             end_positions = special_positions[A:]
-            print('start positions:', start_positions)
-            print('end positions:', end_positions)
+            if verbosity >= 1:
+                print('start positions:', start_positions)
+                print('end positions:', end_positions)
             
             for mode in bench_modes:
                 times = []
@@ -288,15 +302,17 @@ if __name__ == '__main__':
                     (paths, lengths, gap), seconds = solve_mtsp(start_positions, end_positions, weights, mode, time_limit)
                     result = sum(lengths) if mode == 'sum' else max(lengths)
                     
-                    for i, (path, length) in enumerate(zip(paths, lengths)):
-                        print('{}: {} length={}'.format(i, path, length))
+                    if verbosity >= 1:
+                        for i, (path, length) in enumerate(zip(paths, lengths)):
+                            print('{}: {} length={}'.format(i, path, length))
                         
                     times.append(seconds)
                     results.append(result)
                     gaps.append(gap)
                 
                 result_string = f'N={N:>3d} A={A:>3d} mode={mode} time={np.mean(times):>7.3f}s result={np.min(results):>10d} gap={np.min(gaps):>7.2%}\n'
-                print(result_string)
+                if verbosity >= 1:
+                    print(result_string)
                 if bench_file is not None:
                     with open(bench_file, 'a') as f:
                         f.write(result_string)

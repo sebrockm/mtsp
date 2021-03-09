@@ -31,9 +31,11 @@ def get_05_fractional_var_name(variables):
 def branch_and_cut(lp, upper_bound = float('inf'),
                    find_fractional_var_name=get_05_fractional_var_name,
                    find_violated_constraints=None,
-                   time_limit=float('inf')):
+                   time_limit=float('inf'),
+                   verbosity=1):
     start_time = time.time()
     info_string = 'len(S): {:>4d}, BOUNDS: [{:.5E}, {:.5E}] GAP: {:>6.2%}'
+    last_char = '\r' if verbosity == 1 else '\n'
     
     S = PriorityQueue()
     lower_bound = float('-inf')
@@ -47,8 +49,9 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         current_lp.solve(PULP_CBC_CMD(msg=False, threads=CPUS))
         
         if current_lp.status != LpStatusOptimal:
-            print('Status: {}'.format(LpStatus[current_lp.status]))
-            print('no feasible solution found for current LP, skipping it')
+            if verbosity >= 2:
+                print('Status: {}'.format(LpStatus[current_lp.status]))
+                print('no feasible solution found for current LP, skipping it')
             continue
         
         current_lp.lower_bound = current_lp.objective.value()
@@ -58,11 +61,13 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         
         if lower_bound >= upper_bound:
             break
-            
-        print(info_string.format(len(S.queue), lower_bound, upper_bound, upper_bound/lower_bound-1))
+        
+        if verbosity >= 1:
+            print(info_string.format(len(S.queue), lower_bound, upper_bound, upper_bound/lower_bound-1), end=last_char)
 
         if current_lp.lower_bound >= upper_bound:
-            print('lower bound of current LP is bigger than global upper bound, skipping')
+            if verbosity >= 2:
+                print('lower bound of current LP is bigger than global upper bound, skipping')
             continue
 
         variables = current_lp.variablesDict()
@@ -72,21 +77,24 @@ def branch_and_cut(lp, upper_bound = float('inf'),
             for b in B:
                 current_lp += b
             S.put(current_lp)
-            print('added {} violated constraints, solving LP again'.format(len(B)))
+            if verbosity >= 2:
+                print('added {} violated constraints, solving LP again'.format(len(B)))
             continue
 
         fractional_var = find_fractional_var_name(variables)
         if fractional_var is None:
             upper_bound = current_lp.lower_bound
             best_variables = deepcopy(variables)
-            print('found feasible integer solution, updating upper bound')
+            if verbosity >= 2:
+                print('found feasible integer solution, updating upper bound')
             assert lower_bound <= upper_bound + EPS, f'{lower_bound} <= {upper_bound}'
             if lower_bound >= upper_bound:
                 break
             else:
                 continue
-            
-        print('branching on fractional variable {} == {}'.format(fractional_var, variables[fractional_var].value()))
+        
+        if verbosity >= 2:
+            print('branching on fractional variable {} == {}'.format(fractional_var, variables[fractional_var].value()))
 
         copy = deepcopy(current_lp)
         variables[fractional_var].varValue = 0
@@ -100,5 +108,6 @@ def branch_and_cut(lp, upper_bound = float('inf'),
         S.put(copy)
         
     assert find_fractional_var_name(best_variables) is None
-    print(info_string.format(len(S.queue), lower_bound, upper_bound, upper_bound/lower_bound-1))
+    if verbosity >= 1:
+        print(info_string.format(len(S.queue), lower_bound, upper_bound, upper_bound/lower_bound-1))
     return best_variables, (lower_bound, upper_bound)
