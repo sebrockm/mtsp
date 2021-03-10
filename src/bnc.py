@@ -31,6 +31,7 @@ def get_05_fractional_var_name(variables):
 def branch_and_cut(lp, upper_bound = float('inf'),
                    find_fractional_var_name=get_05_fractional_var_name,
                    find_violated_constraints=None,
+                   exploit_fractional_solution=None,
                    time_limit=float('inf'),
                    verbosity=1):
     start_time = time.time()
@@ -53,6 +54,16 @@ def branch_and_cut(lp, upper_bound = float('inf'),
                 print('Status: {}'.format(LpStatus[current_lp.status]))
                 print('no feasible solution found for current LP, skipping it')
             continue
+
+        variables = current_lp.variablesDict()
+        
+        if exploit_fractional_solution is not None:
+            exploit_value, exploit_variables = exploit_fractional_solution(variables)
+            if exploit_value < upper_bound:
+                upper_bound = exploit_value
+                best_variables = exploit_variables
+                if verbosity >= 2:
+                    print('exploiting: found better solution, updating upper bound')
         
         current_lp.lower_bound = current_lp.objective.value()
         lower_bound = min(upper_bound, current_lp.lower_bound)
@@ -69,8 +80,6 @@ def branch_and_cut(lp, upper_bound = float('inf'),
             if verbosity >= 2:
                 print('lower bound of current LP is bigger than global upper bound, skipping')
             continue
-
-        variables = current_lp.variablesDict()
         
         B = find_violated_constraints(variables)
         if len(B) > 0:

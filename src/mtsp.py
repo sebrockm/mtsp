@@ -1,6 +1,7 @@
 from pulp import *
 import numpy as np
 import networkx as nx
+from copy import deepcopy
 from itertools import product
 import tsplib95 as tsplib
 from tqdm import tqdm
@@ -42,18 +43,20 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
     # artificially connect end positions i to start positions i+1 with zero cost
     weights[end_positions, list(start_positions[1:]) + [start_positions[0]]] = 0
     
-    def objective(paths):
-        sums = [np.sum(weights[paths[a][:-1], paths[a][1:]]) for a in agents]
+    def objective(paths, weights):
+        if weights.ndim == 2:
+            weights = np.repeat(weights[np.newaxis], A, axis=0)
+        sums = [np.sum(weights[a, paths[a][:-1], paths[a][1:]]) for a in agents]
         return sum(sums) if optimization_mode == 'sum' else max(sums)
     
-    def mtsp_heuristic():
+    def mtsp_heuristic(weights):
         paths = [[start_positions[a], end_positions[a]] for a in agents]
         for n in set(nodes) - set(start_positions) - set(end_positions):
             min_obj, min_a, min_p = float('inf'), -1, None
             for a in agents:
                 for i in range(1, len(paths[a])):
                     tmp_path = paths[a][:i] + [n] + paths[a][i:]
-                    obj = objective(paths[:a] + [tmp_path] + paths[a+1:])
+                    obj = objective(paths[:a] + [tmp_path] + paths[a+1:], weights)
                     if obj < min_obj:
                         min_obj, min_a, min_p = obj, a, tmp_path
             paths[min_a] = min_p
@@ -206,9 +209,21 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
                         print('found violated comb inequality')
             
         return violated_constraints
+        
+    def exploit_fractional_solution(X):
+        X = deepcopy(X)
+        variables = np.array([X[f'X_{{{a},{u},{v}}}'] for a, u, v in product(agents, nodes, nodes)]).reshape((A, N, N))
+        values = np.array([v.value() for v in variables.flat]).reshape((A, N, N))
+        
+        heuristic_paths = mtsp_heuristic((1 - values) * weights)
+        validate_result(heuristic_paths)
+        heuristic_solution = objective(heuristic_paths, weights)
+        paths_into_variables(heuristic_paths, variables)
+        return heuristic_solution, X
 
-    heuristic_paths = mtsp_heuristic()
-    heuristic_solution = objective(heuristic_paths)
+    heuristic_paths = mtsp_heuristic(weights)
+    validate_result(heuristic_paths)
+    heuristic_solution = objective(heuristic_paths, weights)
     paths_into_variables(heuristic_paths, variables)
 
     if verbosity >= 2:
@@ -216,6 +231,7 @@ def solve_mtsp(start_positions, end_positions, weights, optimization_mode='sum',
     
     bnc_time_limit = time_limit - (time.time() - start_time)
     result_vars, (lb, ub) = branch_and_cut(model, find_violated_constraints=find_violated_constraints,
+                                           exploit_fractional_solution=exploit_fractional_solution,
                                            upper_bound=heuristic_solution, time_limit=bnc_time_limit)
     for v in variables.reshape((-1,)):
         v.varValue = result_vars[v.name].value()
